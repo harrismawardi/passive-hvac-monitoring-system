@@ -13,9 +13,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonInclude
 public class SensorDetail {
-    //todo add validation annotation
-    private String id;
-    @JsonProperty("wind_speed") private double windSpeed;
-    @JsonProperty("humidity") private double humidity;
-    @JsonProperty("particulate") private double particulate;
+    @JsonInclude private String id;
+    @JsonProperty("wind_speed") private Double windSpeed;
+    @JsonProperty("humidity") private Double humidity;
+    @JsonProperty("particulate") private Double particulate;
 }

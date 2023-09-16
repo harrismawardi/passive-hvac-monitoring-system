@@ -34,34 +34,42 @@ public class ScheduledJob {
     @Value("${hvac.controller.url}")
     private String hvacControllerUrl;
 
-    @Scheduled(cron = "0 0 15 * * ?")
+    @Scheduled(cron = "*/10 * * * * *")
     public void evaluateReceivedSensorReadings() {
-        List<SensorDetail> readings = dataStorage.getStoredSensorDetails();
-
-        SensorDetail smoothedSensorDetail = SensorDetail.builder()
-                .humidity(smoothDataFluctuation(readings.stream().mapToDouble(SensorDetail::getHumidity).toArray()))
-                .windSpeed(smoothDataFluctuation(readings.stream().mapToDouble(SensorDetail::getWindSpeed).toArray()))
-                .particulate(smoothDataFluctuation(readings.stream().mapToDouble(SensorDetail::getParticulate).toArray()))
-                .build();
-
-        FeedbackRequest feedback =  generateConditionFeedback(smoothedSensorDetail);
+        log.info("Starting scheduled job");
         try {
-            makeFeedbackRequest(feedback);
+            List<SensorDetail> readings = dataStorage.getStoredSensorDetails();
+            dataStorage.clearStoredSensorDetails();
+            if (!readings.isEmpty()) {
+                SensorDetail smoothedSensorDetail = SensorDetail.builder()
+                        .humidity(smoothDataFluctuation(readings.stream().mapToDouble(SensorDetail::getHumidity).toArray()))
+                        .windSpeed(smoothDataFluctuation(readings.stream().mapToDouble(SensorDetail::getWindSpeed).toArray()))
+                        .particulate(smoothDataFluctuation(readings.stream().mapToDouble(SensorDetail::getParticulate).toArray()))
+                        .build();
+
+                FeedbackRequest feedback =  generateConditionFeedback(smoothedSensorDetail);
+                makeFeedbackRequest(feedback);
+            }
+            dataStorage.clearStoredSensorDetails();
         } catch(Exception ex) {
-            log.error(ex.getMessage());
-            throw new RuntimeException("Failed to action feedback Response", ex);
+            log.error(ex.getMessage() + ex.getCause());
         }
     }
 
-    private double smoothDataFluctuation(double[] sensorReadings) {
-        // Using Exponential Moving Average to smooth data fluctuations
-        // EMA = ((1 - Smoothing Factor) x previous EMA) + (Smoothing Factor x new Data point)
-        double smoothingFactor = 0.5;
-        double ema = sensorReadings[0];
-        for (double reading : sensorReadings) {
-            ema = (1 - smoothingFactor) * ema + smoothingFactor * reading;
+    private Double smoothDataFluctuation(double[] sensorReadings) {
+        try {
+            // Using Exponential Moving Average to smooth data fluctuations
+            // EMA = ((1 - Smoothing Factor) x previous EMA) + (Smoothing Factor x new Data point)
+            double smoothingFactor = 0.5;
+            double ema = sensorReadings[0];
+            for (double reading : sensorReadings) {
+                ema = (1 - smoothingFactor) * ema + smoothingFactor * reading;
+            }
+            return ema;
+        } catch (Exception e){
+            throw new RuntimeException("Exception Occurred: Failed to smooth data.", e);
         }
-        return ema;
+
     }
 
     private FeedbackRequest generateConditionFeedback(SensorDetail detail) {
@@ -69,13 +77,13 @@ public class ScheduledJob {
         FeedbackRequest feedbackRequest = new FeedbackRequest();
         Map<String, String> actionDetail = new HashMap<>();
         if (detail.getHumidity() < humidityThreshold) {
-            actionDetail.put("", "");
+            actionDetail.put("humidity", "Increase ventilation");
         }
         if (detail.getWindSpeed() < windSpeedThreshold) {
-            actionDetail.put("", "");
+            actionDetail.put("fan", "Increase fan speed to 90%");
         }
         if (detail.getParticulate() < particulateThreshold) {
-            actionDetail.put("", "");
+            actionDetail.put("filtration", "Improve air filtration");
         }
         feedbackRequest.setActionNeeded(!actionDetail.isEmpty());
         feedbackRequest.setActionDetail(actionDetail);
@@ -86,14 +94,9 @@ public class ScheduledJob {
         try {
             RestTemplate restTemplate = new RestTemplate();
             ResponseEntity<String> responseEntity = restTemplate.postForEntity(hvacControllerUrl, feedback, String.class);
-            if (responseEntity.getStatusCode().is2xxSuccessful()) {
-                log.info("Feedback Request made successfully. Response Status Code: {}. Response Body: {}",
-                        responseEntity.getStatusCode().value(), responseEntity.getBody());
-            } else {
-                log.error("Feedback Request received error response. Response Body");
-            }
+            log.info("Feedback Request made successfully. Response Body: {}", responseEntity.getBody());
         } catch (HttpClientErrorException ex) {
-            log.error("this is logged instead");
+            log.error("Feedback Request received error response. Status Code: {}. Body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
         }
     }
 
