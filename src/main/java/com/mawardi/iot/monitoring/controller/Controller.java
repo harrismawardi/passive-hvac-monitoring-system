@@ -31,23 +31,3 @@ public class Controller {
         return ResponseEntity.internalServerError().body(e.getMessage());
     }
 }
-
-       //todo
-        /*
-
-        Questions:
-        - How does the service receive data
-            - let's go with an API and then could refactor to an event broker?
-        - Reactive programming?
-        - Does the sensor send an accumulation of data from a period or a single reading?
-        - Is this asyncronous? e.g. the response or non-response a response to the api call or call another endpoint asyncronous
-
-        1.  aggregate sensor detail
-        2.  smooth the data
-        3.  evaluate is within threshold
-        4.  trigger response
-                1. warning message
-                2. adjust louvre
-                3. activate active ventilation
-
-        * */

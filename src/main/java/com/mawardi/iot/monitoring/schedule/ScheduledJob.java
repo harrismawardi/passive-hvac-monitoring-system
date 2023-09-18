@@ -69,7 +69,6 @@ public class ScheduledJob {
         } catch (Exception e){
             throw new RuntimeException("Exception Occurred: Failed to smooth data.", e);
         }
-
     }
 
     private FeedbackRequest generateConditionFeedback(SensorDetail detail) {
